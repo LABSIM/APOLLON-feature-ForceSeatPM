@@ -55,7 +55,7 @@ MOSY_SCRIPT_API_EXPORT void process(MSSA::Context& ctx, MSSA::System& sys)
 		return;
 	}
 
-	// 1:1 ratio from sim (unfiltered)
+	// 1:1 ratio from sim (unfiltered) 
 
 	g_filtered_Roll              = MSSA::lowPass2(g_filtered_Roll,              in.FieldRoll,              1.0f);
 	g_filtered_Pitch             = MSSA::lowPass2(g_filtered_Pitch,             in.FieldPitch,             1.0f);
@@ -84,102 +84,221 @@ MOSY_SCRIPT_API_EXPORT void process(MSSA::Context& ctx, MSSA::System& sys)
 	ctx.output.motion.vectorMode.sway_mm           = 0.0f;
  	ctx.output.motion.vectorMode.surge_mm          = 0.0f;
 
-	// security bound 
-
-	const auto LeftRightMaxAngle  = ctx.singleExcursionsWorkEnvelope.roll_rad;
-	const auto RearFrontMaxAngle  = ctx.singleExcursionsWorkEnvelope.pitch_rad;
-	const auto YawMaxAngle        = ctx.singleExcursionsWorkEnvelope.yaw_rad;
-	const auto DownUpMaxOffset    = ctx.singleExcursionsWorkEnvelope.heave_mm;
-	const auto LeftRightMaxOffset = ctx.singleExcursionsWorkEnvelope.sway_mm;
-	const auto RearFrontMaxOffset = ctx.singleExcursionsWorkEnvelope.surge_mm;
-
 	// add kinematics components
+	// -> fourth kinematics equation if acc != 0.0 to avoid NaN
+	// -> second kinematics equation otherwise
 
-	if (g_filtered_RollAcceleration != 0.0f) 
-	{
+	ctx.output.motion.vectorMode.roll_rad
+		+= MSSA::bound(
+			-ctx.singleExcursionsWorkEnvelope.roll_rad,
+			(
+				(g_filtered_RollAcceleration != 0.0f)
+					? (
+						g_previous_Roll 
+						+ (
+							(g_filtered_RollSpeed * g_filtered_RollSpeed) 
+							- (g_previous_RollSpeed * g_previous_RollSpeed)
+						) / (2.0f * g_filtered_RollAcceleration)
+					)
+					:(
+						g_previous_Roll 
+						+ (
+							(
+								(g_filtered_RollSpeed + g_previous_RollSpeed) 
+								/ 2.0f
+							) 
+							* (
+								(in.FieldTime - g_previous_Time) 
+								/ 1000.0f
+							)
+						)
+					)
+			),
+			ctx.singleExcursionsWorkEnvelope.roll_rad
+		);
 
-		// fourth kinematics equation
+	ctx.output.motion.vectorMode.pitch_rad
+		+= MSSA::bound(
+			-ctx.singleExcursionsWorkEnvelope.pitch_rad,
+			(
+				(g_filtered_PitchAcceleration != 0.0f)
+					? (
+						g_previous_Pitch 
+						+ (
+							(
+								(g_filtered_PitchSpeed * g_filtered_PitchSpeed) 
+								- (g_previous_PitchSpeed * g_previous_PitchSpeed)
+							) 
+							/ (2.0f * g_filtered_PitchAcceleration)
+						)
+					)
+					: (
+						g_previous_Pitch 
+						+ (
+							(
+								(g_filtered_PitchSpeed + g_previous_PitchSpeed) 
+								/ 2.0f
+							) 
+							* (
+								(in.FieldTime - g_previous_Time) 
+								/ 1000.0f
+							)
+						)
+					)
+			),
+			ctx.singleExcursionsWorkEnvelope.pitch_rad
+		);
 
-		ctx.output.motion.vectorMode.roll_rad
-			+= MSSA::bound(
-				-LeftRightMaxAngle,
-				g_previous_Roll + ((g_filtered_RollSpeed * g_filtered_RollSpeed) - (g_previous_RollSpeed * g_previous_RollSpeed)) / (2.0f * g_filtered_RollAcceleration),
-				LeftRightMaxAngle
-			);
-		ctx.output.motion.vectorMode.pitch_rad 
-			+= MSSA::bound(
-				-RearFrontMaxAngle,
-				g_previous_Pitch + ((g_filtered_PitchSpeed * g_filtered_PitchSpeed) - (g_previous_PitchSpeed * g_previous_PitchSpeed)) / (2.0f * g_filtered_PitchAcceleration),
-				RearFrontMaxAngle
-			);
-		ctx.output.motion.vectorMode.yaw_rad   
-			+= MSSA::bound(
-				-YawMaxAngle,
-				g_previous_Yaw + ((g_filtered_YawSpeed * g_filtered_YawSpeed) - (g_previous_YawSpeed * g_previous_YawSpeed)) / (2.0f * g_filtered_YawAcceleration),
-				YawMaxAngle
-			);
-		ctx.output.motion.vectorMode.heave_mm  
-			+= MSSA::bound(
-				-DownUpMaxOffset,
-				g_previous_Heave + ((g_filtered_HeaveSpeed * g_filtered_HeaveSpeed) - (g_previous_HeaveSpeed * g_previous_HeaveSpeed)) / (2.0f * g_filtered_HeaveAcceleration),
-				DownUpMaxOffset
-			);
-		ctx.output.motion.vectorMode.sway_mm  
-			+= MSSA::bound(
-				-LeftRightMaxOffset,
-				g_previous_Sway + ((g_filtered_SwaySpeed * g_filtered_SwaySpeed) - (g_previous_SwaySpeed * g_previous_SwaySpeed)) / (2.0f * g_filtered_SwayAcceleration),
-				LeftRightMaxOffset
-			);
-		ctx.output.motion.vectorMode.surge_mm 
-			+= MSSA::bound(
-				-RearFrontMaxOffset,
-				g_previous_Surge + ((g_filtered_SurgeSpeed * g_filtered_SurgeSpeed) - (g_previous_SurgeSpeed * g_previous_SurgeSpeed)) / (2.0f * g_filtered_SurgeAcceleration),
-				RearFrontMaxOffset
-			);
-	}
-	else
-	{
+	ctx.output.motion.vectorMode.yaw_rad
+		+= MSSA::bound(
+			-ctx.singleExcursionsWorkEnvelope.yaw_rad,
+			(
+				(g_filtered_YawAcceleration != 0.0f)
+					? (
+						g_previous_Yaw 
+						+ (
+							(g_filtered_YawSpeed * g_filtered_YawSpeed) 
+							- (g_previous_YawSpeed * g_previous_YawSpeed)
+						) / (2.0f * g_filtered_YawAcceleration)
+					)
+					:(
+						g_previous_Yaw 
+						+ (
+							(
+								(g_filtered_YawSpeed + g_previous_YawSpeed) 
+								/ 2.0f
+							) 
+							* (
+								(in.FieldTime - g_previous_Time) 
+								/ 1000.0f
+							)
+						)
+					)
+			),
+			ctx.singleExcursionsWorkEnvelope.yaw_rad
+		);
 
-		// second kinematics equation
+	ctx.output.motion.vectorMode.yaw_rad
+		+= MSSA::bound(
+			-ctx.singleExcursionsWorkEnvelope.yaw_rad,
+			(
+				(g_filtered_YawAcceleration != 0.0f)
+					? (
+						g_previous_Yaw 
+						+ (
+							(g_filtered_YawSpeed * g_filtered_YawSpeed) 
+							- (g_previous_YawSpeed * g_previous_YawSpeed)
+						) / (2.0f * g_filtered_YawAcceleration)
+					)
+					:(
+						g_previous_Yaw 
+						+ (
+							(
+								(g_filtered_YawSpeed + g_previous_YawSpeed) 
+								/ 2.0f
+							) 
+							* (
+								(in.FieldTime - g_previous_Time) 
+								/ 1000.0f
+							)
+						)
+					)
+			),
+			ctx.singleExcursionsWorkEnvelope.yaw_rad
+		);
 
-		ctx.output.motion.vectorMode.roll_rad
-			+= MSSA::bound(
-				-LeftRightMaxAngle,
-				g_previous_Roll + (((g_filtered_RollSpeed + g_previous_RollSpeed) / 2.0f) * ((in.FieldTime - g_previous_Time) / 1000.0f)),
-				LeftRightMaxAngle
-			);
-		ctx.output.motion.vectorMode.pitch_rad 
-			+= MSSA::bound(
-				-RearFrontMaxAngle,
-				g_previous_Pitch + (((g_filtered_PitchSpeed + g_previous_PitchSpeed) / 2.0f) * ((in.FieldTime - g_previous_Time) / 1000.0f)),
-				RearFrontMaxAngle
-			);
-		ctx.output.motion.vectorMode.yaw_rad   
-			+= MSSA::bound(
-				-YawMaxAngle,
-				g_previous_Yaw + (((g_filtered_YawSpeed + g_previous_YawSpeed) / 2.0f) * ((in.FieldTime - g_previous_Time) / 1000.0f)),
-				YawMaxAngle
-			);
-		ctx.output.motion.vectorMode.heave_mm  
-			+= MSSA::bound(
-				-DownUpMaxOffset,
-				g_previous_Heave + (((g_filtered_HeaveSpeed + g_previous_HeaveSpeed) / 2.0f) * ((in.FieldTime - g_previous_Time) / 1000.0f)),
-				DownUpMaxOffset
-			);
-		ctx.output.motion.vectorMode.sway_mm  
-			+= MSSA::bound(
-				-LeftRightMaxOffset,
-				g_previous_Sway + (((g_filtered_SwaySpeed + g_previous_SwaySpeed) / 2.0f) * ((in.FieldTime - g_previous_Time) / 1000.0f)),
-				LeftRightMaxOffset
-			);
-		ctx.output.motion.vectorMode.surge_mm 
-			+= MSSA::bound(
-				-RearFrontMaxOffset,
-				g_previous_Surge + (((g_filtered_SurgeSpeed + g_previous_SurgeSpeed) / 2.0f) * ((in.FieldTime - g_previous_Time) / 1000.0f)),
-				RearFrontMaxOffset
-			);
+	ctx.output.motion.vectorMode.heave_mm
+		+= MSSA::bound(
+			-ctx.singleExcursionsWorkEnvelope.heave_mm,
+			(
+				(g_filtered_HeaveAcceleration != 0.0f)
+					? (
+						g_previous_Heave 
+						+ (
+							(g_filtered_HeaveSpeed * g_filtered_HeaveSpeed) 
+							- (g_previous_HeaveSpeed * g_previous_HeaveSpeed)
+						) / (2.0f * g_filtered_HeaveAcceleration)
+					)
+					:(
+						g_previous_Heave 
+						+ (
+							(
+								(g_filtered_HeaveSpeed + g_previous_HeaveSpeed) 
+								/ 2.0f
+							) 
+							* (
+								(in.FieldTime - g_previous_Time) 
+								/ 1000.0f
+							)
+						)
+					)
+			)
+			/* meter (ISU input) to mm */ 
+			* 1000.0f,
+			ctx.singleExcursionsWorkEnvelope.heave_mm
+		);
 
-	} /* if() */
+	ctx.output.motion.vectorMode.surge_mm
+		+= MSSA::bound(
+			-ctx.singleExcursionsWorkEnvelope.surge_mm,
+			(
+				(g_filtered_SurgeAcceleration != 0.0f)
+					? (
+						g_previous_Surge 
+						+ (
+							(g_filtered_SurgeSpeed * g_filtered_SurgeSpeed) 
+							- (g_previous_SurgeSpeed * g_previous_SurgeSpeed)
+						) / (2.0f * g_filtered_SurgeAcceleration)
+					)
+					:(
+						g_previous_Surge 
+						+ (
+							(
+								(g_filtered_SurgeSpeed + g_previous_SurgeSpeed) 
+								/ 2.0f
+							) 
+							* (
+								(in.FieldTime - g_previous_Time) 
+								/ 1000.0f
+							)
+						)
+					)
+			)
+			/* meter (ISU input) to mm */ 
+			* 1000.0f,
+			ctx.singleExcursionsWorkEnvelope.surge_mm
+		);
+
+	ctx.output.motion.vectorMode.sway_mm
+		+= MSSA::bound(
+			-ctx.singleExcursionsWorkEnvelope.sway_mm,
+			(
+				(g_filtered_SwayAcceleration != 0.0f)
+					? (
+						g_previous_Sway 
+						+ (
+							(g_filtered_SwaySpeed * g_filtered_SwaySpeed) 
+							- (g_previous_SwaySpeed * g_previous_SwaySpeed)
+						) / (2.0f * g_filtered_SwayAcceleration)
+					)
+					:(
+						g_previous_Sway 
+						+ (
+							(
+								(g_filtered_SwaySpeed + g_previous_SwaySpeed) 
+								/ 2.0f
+							) 
+							* (
+								(in.FieldTime - g_previous_Time) 
+								/ 1000.0f
+							)
+						)
+					)
+			)
+			/* meter (ISU input) to mm */ 
+			* 1000.0f,
+			ctx.singleExcursionsWorkEnvelope.sway_mm
+		);
 
 	// add unfiltered extra values
 
