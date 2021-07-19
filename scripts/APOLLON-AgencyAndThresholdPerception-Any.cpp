@@ -32,16 +32,11 @@ namespace
 	float g_previous_SurgeSpeed        = 0.0;
 	float g_previous_HeaveSpeed        = 0.0;
 	float g_previous_SwaySpeed         = 0.0;
-	float g_previous_Time              = 0.0;
 
 } /* } anonymous */
 
-MOSY_SCRIPT_API_EXPORT void setup(MSSA::Context& ctx, MSSA::System& /*sys*/)
-{
-
-	g_previous_Time = ctx.input.fromGame.named.FieldTime;
-
-}
+MOSY_SCRIPT_API_EXPORT void setup(MSSA::Context& /*ctx*/, MSSA::System& /*sys*/)
+{ /* empty */ }
 
 MOSY_SCRIPT_API_EXPORT void process(MSSA::Context& ctx, MSSA::System& sys)
 {
@@ -84,154 +79,57 @@ MOSY_SCRIPT_API_EXPORT void process(MSSA::Context& ctx, MSSA::System& sys)
 	ctx.output.motion.vectorMode.sway_mm           = 0.0f;
  	ctx.output.motion.vectorMode.surge_mm          = 0.0f;
 
-	// add kinematics components
-	// -> fourth kinematics equation if acc != 0.0 to avoid NaN
-	// -> second kinematics equation otherwise
+	// add kinematics components through third equ. 
+	// Δx = ( v0 *​ t ) + ( 0.5​ * a * t^2 )
 
-	ctx.output.motion.vectorMode.roll_rad
+	ctx.output.motion.vectorMode.yaw_rad
 		+= MSSA::bound(
-			-ctx.singleExcursionsWorkEnvelope.roll_rad,
+			-ctx.singleExcursionsWorkEnvelope.yaw_rad,
 			(
-				(g_filtered_RollAcceleration != 0.0f)
-					? (
-						g_previous_Roll 
-						+ (
-							(g_filtered_RollSpeed * g_filtered_RollSpeed) 
-							- (g_previous_RollSpeed * g_previous_RollSpeed)
-						) / (2.0f * g_filtered_RollAcceleration)
-					)
-					:(
-						g_previous_Roll 
-						+ (
-							(
-								(g_filtered_RollSpeed + g_previous_RollSpeed) 
-								/ 2.0f
-							) 
-							* (
-								(in.FieldTime - g_previous_Time) 
-								/ 1000.0f
-							)
-						)
-					)
+				g_previous_Yaw
+				+ ( 
+					( g_previous_YawSpeed * ( ctx.systemTimeDiff / 1000.0f ) ) 
+					+ ( 0.5f * g_filtered_YawAcceleration * ( ( ctx.systemTimeDiff / 1000.0f ) * ( ctx.systemTimeDiff / 1000.0f ) ) )
+				)
 			),
-			ctx.singleExcursionsWorkEnvelope.roll_rad
+			ctx.singleExcursionsWorkEnvelope.yaw_rad
 		);
 
 	ctx.output.motion.vectorMode.pitch_rad
 		+= MSSA::bound(
 			-ctx.singleExcursionsWorkEnvelope.pitch_rad,
 			(
-				(g_filtered_PitchAcceleration != 0.0f)
-					? (
-						g_previous_Pitch 
-						+ (
-							(
-								(g_filtered_PitchSpeed * g_filtered_PitchSpeed) 
-								- (g_previous_PitchSpeed * g_previous_PitchSpeed)
-							) 
-							/ (2.0f * g_filtered_PitchAcceleration)
-						)
-					)
-					: (
-						g_previous_Pitch 
-						+ (
-							(
-								(g_filtered_PitchSpeed + g_previous_PitchSpeed) 
-								/ 2.0f
-							) 
-							* (
-								(in.FieldTime - g_previous_Time) 
-								/ 1000.0f
-							)
-						)
-					)
+				g_previous_Pitch
+				+ ( 
+					( g_previous_PitchSpeed * ( ctx.systemTimeDiff / 1000.0f ) ) 
+					+ ( 0.5f * g_filtered_PitchAcceleration * ( ( ctx.systemTimeDiff / 1000.0f ) * ( ctx.systemTimeDiff / 1000.0f ) ) )
+				)
 			),
 			ctx.singleExcursionsWorkEnvelope.pitch_rad
 		);
 
-	ctx.output.motion.vectorMode.yaw_rad
+	ctx.output.motion.vectorMode.roll_rad
 		+= MSSA::bound(
-			-ctx.singleExcursionsWorkEnvelope.yaw_rad,
+			-ctx.singleExcursionsWorkEnvelope.roll_rad,
 			(
-				(g_filtered_YawAcceleration != 0.0f)
-					? (
-						g_previous_Yaw 
-						+ (
-							(g_filtered_YawSpeed * g_filtered_YawSpeed) 
-							- (g_previous_YawSpeed * g_previous_YawSpeed)
-						) / (2.0f * g_filtered_YawAcceleration)
-					)
-					:(
-						g_previous_Yaw 
-						+ (
-							(
-								(g_filtered_YawSpeed + g_previous_YawSpeed) 
-								/ 2.0f
-							) 
-							* (
-								(in.FieldTime - g_previous_Time) 
-								/ 1000.0f
-							)
-						)
-					)
+				g_previous_Roll
+				+ ( 
+					( g_previous_RollSpeed * ( ctx.systemTimeDiff / 1000.0f ) ) 
+					+ ( 0.5f * g_filtered_RollAcceleration * ( ( ctx.systemTimeDiff / 1000.0f ) * ( ctx.systemTimeDiff / 1000.0f ) ) )
+				)
 			),
-			ctx.singleExcursionsWorkEnvelope.yaw_rad
+			ctx.singleExcursionsWorkEnvelope.roll_rad
 		);
-
-	ctx.output.motion.vectorMode.yaw_rad
-		+= MSSA::bound(
-			-ctx.singleExcursionsWorkEnvelope.yaw_rad,
-			(
-				(g_filtered_YawAcceleration != 0.0f)
-					? (
-						g_previous_Yaw 
-						+ (
-							(g_filtered_YawSpeed * g_filtered_YawSpeed) 
-							- (g_previous_YawSpeed * g_previous_YawSpeed)
-						) / (2.0f * g_filtered_YawAcceleration)
-					)
-					:(
-						g_previous_Yaw 
-						+ (
-							(
-								(g_filtered_YawSpeed + g_previous_YawSpeed) 
-								/ 2.0f
-							) 
-							* (
-								(in.FieldTime - g_previous_Time) 
-								/ 1000.0f
-							)
-						)
-					)
-			),
-			ctx.singleExcursionsWorkEnvelope.yaw_rad
-		);
-
+		
 	ctx.output.motion.vectorMode.heave_mm
 		+= MSSA::bound(
 			-ctx.singleExcursionsWorkEnvelope.heave_mm,
 			(
-				(g_filtered_HeaveAcceleration != 0.0f)
-					? (
-						g_previous_Heave 
-						+ (
-							(g_filtered_HeaveSpeed * g_filtered_HeaveSpeed) 
-							- (g_previous_HeaveSpeed * g_previous_HeaveSpeed)
-						) / (2.0f * g_filtered_HeaveAcceleration)
-					)
-					:(
-						g_previous_Heave 
-						+ (
-							(
-								(g_filtered_HeaveSpeed + g_previous_HeaveSpeed) 
-								/ 2.0f
-							) 
-							* (
-								(in.FieldTime - g_previous_Time) 
-								/ 1000.0f
-							)
-						)
-					)
+				g_previous_Heave
+				+ ( 
+					( g_previous_HeaveSpeed * ( ctx.systemTimeDiff / 1000.0f ) ) 
+					+ ( 0.5f * g_filtered_HeaveAcceleration * ( ( ctx.systemTimeDiff / 1000.0f ) * ( ctx.systemTimeDiff / 1000.0f ) ) )
+				)
 			)
 			/* meter (ISU input) to mm */ 
 			* 1000.0f,
@@ -242,27 +140,11 @@ MOSY_SCRIPT_API_EXPORT void process(MSSA::Context& ctx, MSSA::System& sys)
 		+= MSSA::bound(
 			-ctx.singleExcursionsWorkEnvelope.surge_mm,
 			(
-				(g_filtered_SurgeAcceleration != 0.0f)
-					? (
-						g_previous_Surge 
-						+ (
-							(g_filtered_SurgeSpeed * g_filtered_SurgeSpeed) 
-							- (g_previous_SurgeSpeed * g_previous_SurgeSpeed)
-						) / (2.0f * g_filtered_SurgeAcceleration)
-					)
-					:(
-						g_previous_Surge 
-						+ (
-							(
-								(g_filtered_SurgeSpeed + g_previous_SurgeSpeed) 
-								/ 2.0f
-							) 
-							* (
-								(in.FieldTime - g_previous_Time) 
-								/ 1000.0f
-							)
-						)
-					)
+				g_previous_Surge
+				+ ( 
+					( g_previous_SurgeSpeed * ( ctx.systemTimeDiff / 1000.0f ) ) 
+					+ ( 0.5f * g_filtered_SurgeAcceleration * ( ( ctx.systemTimeDiff / 1000.0f ) * ( ctx.systemTimeDiff / 1000.0f ) ) )
+				)
 			)
 			/* meter (ISU input) to mm */ 
 			* 1000.0f,
@@ -273,27 +155,11 @@ MOSY_SCRIPT_API_EXPORT void process(MSSA::Context& ctx, MSSA::System& sys)
 		+= MSSA::bound(
 			-ctx.singleExcursionsWorkEnvelope.sway_mm,
 			(
-				(g_filtered_SwayAcceleration != 0.0f)
-					? (
-						g_previous_Sway 
-						+ (
-							(g_filtered_SwaySpeed * g_filtered_SwaySpeed) 
-							- (g_previous_SwaySpeed * g_previous_SwaySpeed)
-						) / (2.0f * g_filtered_SwayAcceleration)
-					)
-					:(
-						g_previous_Sway 
-						+ (
-							(
-								(g_filtered_SwaySpeed + g_previous_SwaySpeed) 
-								/ 2.0f
-							) 
-							* (
-								(in.FieldTime - g_previous_Time) 
-								/ 1000.0f
-							)
-						)
-					)
+				g_previous_Sway
+				+ ( 
+					( g_previous_SwaySpeed * ( ctx.systemTimeDiff / 1000.0f ) ) 
+					+ ( 0.5f * g_filtered_SwayAcceleration * ( ( ctx.systemTimeDiff / 1000.0f ) * ( ctx.systemTimeDiff / 1000.0f ) ) )
+				)
 			)
 			/* meter (ISU input) to mm */ 
 			* 1000.0f,
@@ -323,7 +189,6 @@ MOSY_SCRIPT_API_EXPORT void process(MSSA::Context& ctx, MSSA::System& sys)
 	g_previous_SurgeSpeed = g_filtered_SurgeSpeed;
 	g_previous_HeaveSpeed = g_filtered_HeaveSpeed;
 	g_previous_SwaySpeed  = g_filtered_SwaySpeed;
-	g_previous_Time       = in.FieldTime;
 
 	// other processors (defaulted)
 	MoSy_FSMI_DefaultTactileAudioBasedFeedbackEffectsProcessor();
