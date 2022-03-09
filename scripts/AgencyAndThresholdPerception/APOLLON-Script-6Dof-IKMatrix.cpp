@@ -1,18 +1,6 @@
 #include "GameSpecific.h"
 #include "ScriptsAPI.h"
 
-namespace
-{
-
-	float g_filtered_Roll              = 0.0;
-	float g_filtered_Pitch             = 0.0;
-	float g_filtered_Yaw               = 0.0;
-	float g_filtered_Heave             = 0.0;
-	float g_filtered_Surge             = 0.0;
-	float g_filtered_Sway              = 0.0;
-
-} /* } anonymous */
-
 MOSY_SCRIPT_API_EXPORT void setup(MSSA::Context& /*ctx*/, MSSA::System& /*sys*/)
 { /* empty */ }
 
